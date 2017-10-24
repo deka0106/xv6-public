@@ -90,10 +90,49 @@ sys_uptime(void)
   return xticks;
 }
 
-int sys_getdate(void) {
-    struct rtcdate *dp;
-    if (argptr(0, (char **)&dp, sizeof(dp)) < 0)
-        return -1;
-    cmostime(dp);
-    return 0;
+int
+sys_getdate(void)
+{
+  struct rtcdate *dp;
+
+  if (argptr(0, (char **)&dp, sizeof(dp)) < 0)
+    return -1;
+  cmostime(dp);
+  return 0;
+}
+
+int
+rtcdatecmp (struct rtcdate *dp1, struct rtcdate *dp2)
+{
+  int tmp = 0;
+  return (tmp = dp2->year   - dp1->year)   ? tmp :
+         (tmp = dp2->month  - dp1->month)  ? tmp :
+         (tmp = dp2->day    - dp1->day)    ? tmp :
+         (tmp = dp2->hour   - dp1->hour)   ? tmp :
+         (tmp = dp2->minute - dp1->minute) ? tmp :
+         (tmp = dp2->second - dp1->second) ? tmp : 0;
+}
+
+int
+sys_sleep_until(void)
+{
+  struct rtcdate *date, now;
+
+  if (argptr(0, (char **)&date, sizeof(date)) < 0) return -1;
+
+  cmostime(&now);
+  if (rtcdatecmp(&now, date) < 0) return -1;
+
+  acquire(&tickslock);
+  while(rtcdatecmp(&now, date) > 0){
+    if(myproc()->killed){
+      release(&tickslock);
+      return -1;
+    }
+    sleep(&ticks, &tickslock);
+    cmostime(&now);
+  }
+  release(&tickslock);
+
+  return 0;
 }
